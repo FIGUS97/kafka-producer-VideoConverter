@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="UTF-8">
+    <title>Kafka Producer</title>
+</head>
+<body>
+<p>Aplikacja: <span th:text="${appName}">Kafka Producer</span></p>
+<h2>Wysyłanie pliku wideo w formacie mp4</h2>
+<form th:action="@{/uploadFile}" enctype="multipart/form-data" method="post">
+    <input accept="video/*" name="file" type="file">
+    <br><br>
+    <input type="submit" value="Wyślij">
+</form>
+<br><br>
+<form th:if="${waitDisplay} == true">
+    <a>Przetwarzanie... (Odśwież stronę w celu sprawdzenia czy plik gotowy)</a>
+</form>
+<form th:if="${downloadDisplay} == true" th:action="@{/download}" enctype="multipart/form-data" method="get">
+    <input type="submit" value="Pobierz">
+</form>
+</body>
+</html>
