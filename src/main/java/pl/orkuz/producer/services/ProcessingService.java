@@ -1,10 +1,14 @@
 package pl.orkuz.producer.services;
 
+import io.prometheus.client.Counter;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.header.internals.RecordHeader;
 import org.apache.kafka.common.utils.Bytes;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StreamUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -14,6 +18,10 @@ import org.springframework.web.server.ResponseStatusException;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 
 @Service
 public class ProcessingService {
@@ -40,11 +48,24 @@ public class ProcessingService {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error during conversion");
         }
 
-        kafkaTemplate.send("videoStorage1", new Bytes(videoBytes));
+        String messageKey = Optional.of(video.getOriginalFilename()).orElse("video" + System.currentTimeMillis());
 
-        System.out.println("Plik wideo został wysłany." +
-                "\nFormat pliku: " + video.getContentType() +
-                "\nNazwa pliku: " + video.getOriginalFilename());
+        RecordHeader recordHeader = new RecordHeader("kafka_messageKey", messageKey.getBytes());
+        ProducerRecord<String, Bytes> record = new ProducerRecord<>("videoStorage1", null,
+                messageKey, new Bytes(videoBytes), Collections.singletonList(recordHeader));
+
+        CompletableFuture<SendResult<String, Bytes>> sendResult = kafkaTemplate.send(record);
+
+        try {
+            logMessage("Plik wideo został wysłany." +
+                    "\nFormat pliku: " + video.getContentType() +
+                    "\nNazwa pliku: " + video.getOriginalFilename() +
+                    "\nMetadata kafka: " + sendResult.get().getRecordMetadata().serializedKeySize());
+        } catch (InterruptedException | ExecutionException e) {
+            logMessage("Plik wideo został wysłany. Nie udało się uzyskać kafka Metadata" +
+                    "\nFormat pliku: " + video.getContentType() +
+                    "\nNazwa pliku: " + video.getOriginalFilename());
+        }
         return ResponseEntity.ok("Plik wideo został poprawnie przesłany." +
                 "Format pliku: " + video.getContentType() +
                 "\nNazwa pliku: " + video.getOriginalFilename());
@@ -73,5 +94,11 @@ public class ProcessingService {
 
     public File getCurrentConvertedFile() {
         return currentConvertedFile;
+    }
+
+    private void logMessage(String message) {
+        System.out.println("==============================");
+        System.out.println(message);
+        System.out.println("==============================");
     }
 }
